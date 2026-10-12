@@ -58,8 +58,14 @@ def main():
             result = replay(config, args.raw_run, args.region)
         elif args.command == "login":
             from .auth import save_auth
-            result = save_auth(config["data_dir"], args.source, cookie=args.cookie,
-                               token=args.token, headers=args.header, auth_file=args.auth_file)
+            cookie, token = args.cookie, args.token
+            if not any((cookie, token, args.header, args.auth_file)):
+                import getpass
+                cookie = getpass.getpass("请粘贴浏览器 Cookie（可留空）: ").strip() or None
+                if not cookie:
+                    token = getpass.getpass("请粘贴 Authorization 令牌（可留空）: ").strip() or None
+            result = save_auth(config["data_dir"], args.source, cookie=cookie,
+                               token=token, headers=args.header, auth_file=args.auth_file)
         elif args.command == "check":
             if not store.rows("SELECT * FROM source_projects WHERE source=? AND region_id=? AND source_id=?", (args.source, args.region, args.source_id)):
                 parser.error("没有找到该来源项目")
