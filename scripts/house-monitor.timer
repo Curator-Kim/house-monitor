@@ -1,0 +1,11 @@
+[Unit]
+Description=Check persisted daily random collection time every minute
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+Persistent=true
+AccuracySec=1s
+Unit=house-monitor.service
+
+[Install]
+WantedBy=timers.target

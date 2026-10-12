@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily residential price collection dispatcher
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/house-monitor
+ExecStart=%h/house-monitor/.venv/bin/python -m house_monitor.cli tick
+TimeoutStartSec=3600

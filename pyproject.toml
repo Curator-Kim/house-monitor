@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "huangpu-house-monitor"
+version = "0.1.0"
+description = "可追溯的住宅报价每日观察系统"
+requires-python = ">=3.11"
+dependencies = ["requests>=2.32,<3", "beautifulsoup4>=4.12,<5", "streamlit>=1.40,<2", "pandas>=2.2,<3", "openpyxl>=3.1,<4", "filelock>=3.16,<4", "tzdata>=2025.1"]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10"]
+
+[project.scripts]
+house-monitor = "house_monitor.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["house_monitor*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

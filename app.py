@@ -1,0 +1,107 @@
+from datetime import date
+import pandas as pd
+import streamlit as st
+from filelock import Timeout
+from house_monitor.config import load_config
+from house_monitor.storage import Store
+from house_monitor.service import collect
+from house_monitor.analytics import frame, paired_changes, csv_bytes, excel_bytes, LABELS, SOURCES
+
+st.set_page_config(page_title="住宅价格观察", page_icon="🏠", layout="wide")
+config = load_config()
+store = Store(config["data_dir"])
+st.title("住宅价格观察")
+st.caption("每天北京时间09:00–12:00随机采集一次 · 免费公开来源 · 个人研究")
+regions = [r for r in config["regions"] if r.get("enabled")]
+if not regions:
+    st.warning("尚未配置已支持地区")
+    st.stop()
+region = st.sidebar.selectbox("地区", regions, format_func=lambda r: f"{r['city']} · {r['district']}区")
+st.sidebar.caption("只有已接入并配置的数据源对应地区可选。其他城市需新增适配器。")
+if st.sidebar.button("立即采集", type="primary"):
+    try:
+        with st.spinner("正在采集公开数据，历史回补可能需要数分钟…"):
+            result = collect(config, region["id"])
+        st.sidebar.success("采集结束：" + result["status"])
+    except Timeout:
+        st.sidebar.info("已有采集任务在运行，请稍后刷新")
+    except Exception as exc:
+        st.sidebar.error(str(exc))
+st.sidebar.button("刷新页面")
+df = frame(store, region["id"])
+tabs = st.tabs(["楼盘报价", "官方指标与月度指数", "覆盖与运行", "数据导出"])
+filtered = df.copy()
+with tabs[0]:
+    st.info("平台参考报价与成交价分别记录。当前尚未验证可获取可靠的楼盘每日成交价。")
+    st.caption("验证期数据会显示，但不视为已通过三天连续采集验收。起价、总价和价格区间不进入参考均价趋势。")
+    if df.empty:
+        st.warning("还没有有效观察记录。点击“立即采集”开始；受阻来源可在“覆盖与运行”查看原因。")
+    else:
+        quote = df[df.source.isin(["fang", "lianjia"])].copy()
+        if not quote.empty:
+            sources = st.multiselect("报价来源", list(quote.source.unique()), default=list(quote.source.unique()), format_func=lambda s: SOURCES.get(s,s))
+            names = st.multiselect("楼盘", sorted(quote.name.unique()))
+            kinds = st.multiselect("价格口径", list(quote.kind.unique()), default=list(quote.kind.unique()), format_func=lambda k: LABELS.get(k,k))
+            minimum, maximum = date.fromisoformat(quote.period.min()), date.fromisoformat(quote.period.max())
+            dates = st.date_input("观察日期或历史记录日期", value=(minimum,maximum), min_value=minimum, max_value=maximum)
+            quote = quote[quote.source.isin(sources) & quote.kind.isin(kinds)]
+            if names:
+                quote = quote[quote.name.isin(names)]
+            if len(dates) == 2:
+                quote = quote[quote.period.between(dates[0].isoformat(), dates[1].isoformat())]
+            filtered = quote
+            snapshot = quote[quote.granularity == "snapshot"]
+            daily = snapshot[snapshot.kind == "reference_unit"].copy()
+            daily["series"] = daily.name + " · " + daily.source.map(SOURCES)
+            if not daily.empty:
+                st.subheader("同楼盘、同来源参考单价")
+                st.line_chart(daily.pivot_table(index="period", columns="series", values="value", aggfunc="first"), y_label="元/平方米")
+                changes = paired_changes(daily)
+                st.subheader("同样本报价变化")
+                st.caption("相邻观察日共同楼盘的单价变化百分比平均值，同时展示样本数；断档时不是日环比。")
+                if changes.empty:
+                    st.caption("至少两个观察日后计算。")
+                else:
+                    st.dataframe(changes, hide_index=True, width="stretch")
+            st.dataframe(quote[["name","source","kind","value","value_high","unit","period","granularity","raw_price","source_updated","missing_reason","url"]], hide_index=True, width="stretch")
+            st.caption("snapshot为实际采集快照；event为来源公布的历史价格记录，未填充到其他日期。售罄及退出销售项目的历史仍保留。")
+        else:
+            st.warning("暂未采集到楼盘报价，请查看来源状态。")
+with tabs[1]:
+    if df.empty:
+        st.caption("尚无官方数据。")
+    else:
+        official = df[df.source == "official"]
+        monthly = df[df.source == "nbs"]
+        st.subheader("区级住宅指标")
+        st.dataframe(official, hide_index=True, width="stretch")
+        st.caption("累计已售数据的差值仅能标为净变化；网签套数不能推算成交均价。")
+        st.subheader("广州月度价格指数")
+        if not monthly.empty:
+            monthly = monthly.copy()
+            monthly["metric"] = monthly.kind.map(LABELS)
+            st.line_chart(monthly.pivot_table(index="period",columns="metric",values="value",aggfunc="first"))
+            st.dataframe(monthly[["period","metric","value","unit","source_updated","url"]],hide_index=True,width="stretch")
+        else:
+            st.caption("尚未取得月度指数，不能以报价代替。")
+with tabs[2]:
+    st.subheader("来源覆盖与验证阶段")
+    gates = pd.DataFrame(store.gates())
+    st.dataframe(gates, hide_index=True, width="stretch")
+    st.caption("provisional：验证中；verified：完整采集连续三天且报价项目抽查通过。七天条件满足后才进入二手房接入验收阶段。")
+    coverage = pd.DataFrame(store.rows("SELECT * FROM source_runs WHERE region_id=? ORDER BY run_id DESC LIMIT 40", (region["id"],)))
+    if not coverage.empty:
+        coverage["missing_pct"] = coverage.apply(lambda r: round(r["missing"] / r["parsed"] * 100, 2) if r["parsed"] else None, axis=1)
+    st.dataframe(coverage,hide_index=True,width="stretch")
+    st.caption("discovered：列表发现项目；eligible：符合在售住宅筛选；parsed：保存的快照项目；缺失率基于本轮采集。完整分页不代表全区绝对覆盖。")
+    st.subheader("任务记录")
+    st.dataframe(store.rows("SELECT * FROM runs ORDER BY id DESC LIMIT 20"),hide_index=True,width="stretch")
+    st.subheader("每日随机时刻")
+    st.dataframe(store.rows("SELECT * FROM schedules ORDER BY day DESC LIMIT 7"),hide_index=True,width="stretch")
+with tabs[3]:
+    st.caption("导出内容与当前选择一致，含来源、原始价格、缺失原因和真实采集时间。")
+    export_scope = st.radio("导出范围", ["当前报价筛选", "当前地区全部数据"], horizontal=True)
+    export = filtered if export_scope == "当前报价筛选" else df
+    st.write(f"共 {len(export)} 条观察记录")
+    st.download_button("下载 CSV", csv_bytes(export), "house_observations.csv", "text/csv")
+    st.download_button("下载 Excel", excel_bytes(export), "house_observations.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

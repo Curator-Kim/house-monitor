@@ -1,0 +1,25 @@
+{
+  "data_dir": "data",
+  "timezone": "Asia/Shanghai",
+  "schedule_start": "09:00:00",
+  "schedule_end": "12:00:00",
+  "request_interval_seconds": 2,
+  "request_timeout_seconds": 20,
+  "max_pages": 30,
+  "history_enabled": true,
+  "history_refresh_days": 7,
+  "regions": [
+    {
+      "id": "440112",
+      "city": "广州",
+      "district": "黄埔",
+      "enabled": true,
+      "sources": {
+        "fang": "https://gz.newhouse.fang.com/house/s/huangpu/",
+        "lianjia": "https://gz.fang.lianjia.com/loupan/",
+        "official": "https://zfcj.gz.gov.cn/zfcj/tjxx/spfxstjxx/",
+        "nbs": "https://www.stats.gov.cn/sj/zxfb/"
+      }
+    }
+  ]
+}
