@@ -23,6 +23,12 @@ def main():
     replay_parser = sub.add_parser("replay", help="重新解析原始响应，保留真实抓取时间")
     replay_parser.add_argument("--raw-run", type=int, required=True)
     replay_parser.add_argument("--region", required=True)
+    login_parser = sub.add_parser("login", help="导入用户已有的 Cookie 或令牌，不保存账号密码")
+    login_parser.add_argument("--source", required=True, choices=["lianjia"])
+    login_parser.add_argument("--cookie", help="浏览器 Cookie 请求头，例如 name=value; name2=value2")
+    login_parser.add_argument("--token", help="Authorization 请求头值")
+    login_parser.add_argument("--header", action="append", default=[], help="额外请求头，可重复")
+    login_parser.add_argument("--auth-file", help="包含 cookies 和 headers 的 JSON 文件")
     e = sub.add_parser("export")
     e.add_argument("--region")
     e.add_argument("--output", default="exports/observations.xlsx")
@@ -50,6 +56,10 @@ def main():
         elif args.command == "replay":
             from .replay import replay
             result = replay(config, args.raw_run, args.region)
+        elif args.command == "login":
+            from .auth import save_auth
+            result = save_auth(config["data_dir"], args.source, cookie=args.cookie,
+                               token=args.token, headers=args.header, auth_file=args.auth_file)
         elif args.command == "check":
             if not store.rows("SELECT * FROM source_projects WHERE source=? AND region_id=? AND source_id=?", (args.source, args.region, args.source_id)):
                 parser.error("没有找到该来源项目")

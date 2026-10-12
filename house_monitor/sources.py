@@ -88,6 +88,19 @@ def collect_nbs(url, region, client):
     return result
 
 
+def collect_lianjia(url, region, client, config, store):
+    from .auth import apply_auth
+    try:
+        apply_auth(client, "lianjia")
+    except SourceError as exc:
+        return SourceResult("lianjia", region["id"], exc.status, str(exc))
+    result = collect_list("lianjia", url, region, client, config, store)
+    if result.status == "blocked" and "login" in result.message.lower():
+        result.status = "auth_required"
+        result.message = "链家登录会话缺失或已失效，请通过 login 导入新的 Cookie/令牌"
+    return result
+
+
 def collect_ygjy(url, region, client, config):
     result = SourceResult("ygjy", region["id"])
     try:
@@ -148,8 +161,10 @@ def collect_ygjy(url, region, client, config):
 
 def collect_source(source, url, region, client, config, store):
     try:
-        if source in ("fang", "lianjia"):
+        if source == "fang":
             return collect_list(source, url, region, client, config, store)
+        if source == "lianjia":
+            return collect_lianjia(url, region, client, config, store)
         if source == "nbs":
             return collect_nbs(url, region, client)
         if source == "ygjy":

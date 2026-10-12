@@ -17,7 +17,7 @@
       "enabled": true,
       "sources": {
         "fang": "https://gz.newhouse.fang.com/house/s/huangpu/",
-        "lianjia": "https://gz.fang.lianjia.com/loupan/",
+        "lianjia": "https://gz.fang.lianjia.com/loupan/huangpuqu/",
         "ygjy": "https://zfcj.gz.gov.cn/zfcj/fyxx/fdcxmxx/index.html",
         "official": "https://zfcj.gz.gov.cn/zfcj/tjxx/spfxstjxx/",
         "nbs": "https://www.stats.gov.cn/sj/zxfb/"
