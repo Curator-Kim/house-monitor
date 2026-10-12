@@ -75,7 +75,7 @@ with tabs[1]:
         monthly = df[df.source == "nbs"]
         st.subheader("区级住宅指标")
         st.dataframe(official, hide_index=True, width="stretch")
-        st.caption("累计已售数据的差值仅能标为净变化；网签套数不能推算成交均价。")
+        st.caption("可售为纳入预售且可供签约的单元；未售包括可售、抵押、查封及未纳入预售的单元；签约为每日网上签约量。三者均不包含可靠成交金额，不能据此推算成交均价。")
         st.subheader("广州月度价格指数")
         if not monthly.empty:
             monthly = monthly.copy()
