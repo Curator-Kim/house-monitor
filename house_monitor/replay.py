@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from filelock import FileLock
 from .http import decode, SourceError
 from .models import SourceResult
-from .parsers import fang_list, fang_history, lianjia_list, official_json, nbs_indices
+from .parsers import fang_list, fang_history, lianjia_list, official_json, ygjy_records, nbs_indices
 from .storage import Store
 
 
@@ -31,6 +31,9 @@ def _finalize(result, message):
         else:
             result.status = "ok" if result.complete else "partial"
             result.message = message
+    elif result.source == "ygjy":
+        result.status = "ok" if result.complete and result.records else "partial" if result.records else "schema_changed"
+        result.message = "阳光家缘项目住宅已售/未售套数，从原始响应重新解析"
     elif result.source == "official":
         result.discovered = result.eligible = 1 if result.records else 0
         result.status = "ok" if result.records else "schema_changed"
@@ -61,6 +64,10 @@ def replay(config, raw_run, region_id):
     fang_ids = set()
     lianjia_rows = {}
     lianjia_ids = set()
+    ygjy_rows = {}
+    ygjy_ids = set()
+    ygjy_pages = set()
+    ygjy_total_pages = 0
     expected_fang_pages = None
 
     for meta in metadata:
@@ -93,6 +100,18 @@ def replay(config, raw_run, region_id):
                 lianjia_ids |= ids
                 result.pages += 1
                 result.complete = nxt is None and (not total or result.pages == total)
+            elif path.endswith("/fdcxmxxlb.ashx"):
+                source = "ygjy"
+                result = results.setdefault(source, SourceResult(source, region_id))
+                payload = json.loads(meta["body"])
+                fetched = datetime.fromisoformat(meta["fetched_at"]).astimezone(ZoneInfo(config["timezone"]))
+                rows = ygjy_records(payload, url, region, fetched.date().isoformat())
+                ygjy_rows.update({(o.source_id, o.kind, o.period): o for o in rows})
+                ygjy_ids.update(o.source_id for o in rows)
+                ygjy_pages.add(int(payload.get("currentPage") or 1))
+                ygjy_total_pages = max(ygjy_total_pages, int(payload.get("totalPage") or 0))
+                result.pages = len(ygjy_pages)
+                result.complete = bool(ygjy_total_pages and len(ygjy_pages) >= ygjy_total_pages)
             elif "/ysqgk/Api/WebApi/mrxjspf" in path and path.endswith(".ashx"):
                 source = "official"
                 result = results.setdefault(source, SourceResult(source, region_id))
@@ -130,6 +149,10 @@ def replay(config, raw_run, region_id):
         result.records = list(lianjia_rows.values())
         result.discovered = len(lianjia_ids)
         result.eligible = len(lianjia_rows)
+    if "ygjy" in results:
+        result = results["ygjy"]
+        result.records = list(ygjy_rows.values())
+        result.discovered = result.eligible = len(ygjy_ids)
 
     for result in results.values():
         _finalize(result, "从原始响应重新解析，保留原始抓取时间；缺失分页不视为全量")

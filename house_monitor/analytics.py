@@ -8,12 +8,13 @@ LABELS = {
     "available_count": "可售住宅套数", "available_area": "可售住宅面积",
     "unsold_count": "未售住宅套数", "unsold_area": "未售住宅面积",
     "signed_count": "住宅网签套数", "signed_area": "住宅网签面积",
+    "sold_count": "住宅已售套数", "unsold_count": "住宅未售套数",
     "new_index_mom": "广州新房环比指数", "new_index_yoy": "广州新房同比指数",
     "new_index_year_average": "广州新房年内平均指数",
     "resale_index_mom": "广州二手房环比指数", "resale_index_yoy": "广州二手房同比指数",
     "resale_index_year_average": "广州二手房年内平均指数", "unknown": "未确认口径",
 }
-SOURCES = {"fang": "房天下", "lianjia": "链家", "official": "广州住建局", "nbs": "国家统计局"}
+SOURCES = {"fang": "房天下", "lianjia": "链家", "official": "广州住建局", "ygjy": "阳光家缘", "nbs": "国家统计局"}
 
 
 def frame(store, region=None):

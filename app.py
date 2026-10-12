@@ -72,10 +72,19 @@ with tabs[1]:
         st.caption("尚无官方数据。")
     else:
         official = df[df.source == "official"]
+        ygjy = df[df.source == "ygjy"]
         monthly = df[df.source == "nbs"]
         st.subheader("区级住宅指标")
         st.dataframe(official, hide_index=True, width="stretch")
         st.caption("可售为纳入预售且可供签约的单元；未售包括可售、抵押、查封及未纳入预售的单元；签约为每日网上签约量。三者均不包含可靠成交金额，不能据此推算成交均价。")
+        st.subheader("阳光家缘项目住宅销控")
+        if not ygjy.empty:
+            detail = ygjy.copy()
+            detail["口径"] = detail.kind.map(LABELS)
+            st.dataframe(detail[["period","name","source_id","presell","口径","value","unit","address","url"]], hide_index=True, width="stretch")
+        else:
+            st.caption("尚未取得阳光家缘项目底册；查询验证码流程失败时不会伪造项目数据。")
+        st.caption("已售与未售均为住宅套数，用于官方项目底册和销控核对，不能换算成交均价。")
         st.subheader("广州月度价格指数")
         if not monthly.empty:
             monthly = monthly.copy()

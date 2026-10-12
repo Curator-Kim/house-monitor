@@ -128,7 +128,7 @@ class Store:
                        result.pages, int(result.complete), json.dumps(result.warnings, ensure_ascii=False)))
 
     def observations(self, region_id=None):
-        sql = """SELECT o.*,p.match_status,s.address,s.property_type,s.sale_status FROM observations o
+        sql = """SELECT o.*,p.match_status,p.official_id AS official_id,p.presell AS presell,s.address,s.property_type,s.sale_status FROM observations o
                  JOIN projects p ON p.id=o.project_id
                  JOIN source_projects s ON s.source=o.source AND s.source_id=o.source_id AND s.region_id=o.region_id"""
         return self.rows(sql + (" WHERE o.region_id=?" if region_id else ""), (region_id,) if region_id else ())

@@ -1,11 +1,14 @@
 import re
 import json
 from datetime import datetime, timedelta
+from time import sleep
+from zoneinfo import ZoneInfo
 from urllib.parse import urljoin, urlsplit
 from bs4 import BeautifulSoup
 from .models import SourceResult
 from .http import SourceError
-from .parsers import fang_list, fang_history, lianjia_list, official_stats, official_json, nbs_indices, text
+from .parsers import fang_list, fang_history, lianjia_list, official_stats, official_json, nbs_indices, ygjy_records, text
+from .browser import BrowserSession
 
 
 def collect_list(source, url, region, client, config, store):
@@ -85,12 +88,72 @@ def collect_nbs(url, region, client):
     return result
 
 
+def collect_ygjy(url, region, client, config):
+    result = SourceResult("ygjy", region["id"])
+    try:
+        # 先通过普通客户端核实 robots 并留存查询入口。
+        client.get(url)
+        api_url = urljoin(url, "/ysqgk/Api/WebApi/fdcxmxxlb.ashx")
+        period = datetime.now(ZoneInfo(config["timezone"])).date().isoformat()
+        page = 1
+        total_pages = 1
+        total_num = 0
+        seen = set()
+        max_pages = config.get("max_pages", 30)
+        with BrowserSession(config) as browser:
+            browser.ygjy_search(url, region["district"])
+            while page <= total_pages:
+                if page > max_pages:
+                    result.warnings.append(f"分页超过上限 {max_pages}，本次仅部分覆盖")
+                    break
+                params = {"sProjectAddress": region["district"], "page": page, "pageSize": 99}
+                raw = browser.fetch_json(api_url, params, method="POST")
+                client.save_raw(api_url, raw, method="POST", content_type="application/json; charset=utf-8")
+                payload = json.loads(raw)
+                status = payload.get("status")
+                if status not in (None, 0, 1, "0", "1"):
+                    raise SourceError(f"阳光家缘接口状态异常：{status} {payload.get('message', '')}", "schema_changed")
+                total_pages = int(payload.get("totalPage") or total_pages or 1)
+                total_num = max(total_num, int(payload.get("totalNum") or 0))
+                rows = ygjy_records(payload, api_url, region, period)
+                if total_num and not rows:
+                    raise SourceError("阳光家缘分页没有返回项目记录", "schema_changed")
+                seen.update(o.source_id for o in rows)
+                result.records.extend(rows)
+                result.pages = page
+                result.discovered = max(total_num, len(seen))
+                result.eligible = len(seen)
+                page += 1
+                if page <= total_pages:
+                    sleep(max(0.5, config.get("request_interval_seconds", 2)))
+        result.pages = page - 1
+        result.discovered = total_num
+        result.eligible = len(seen)
+        result.complete = page - 1 == total_pages and total_pages <= max_pages
+        if result.complete and result.records:
+            result.status = "ok"
+            result.message = "阳光家缘项目住宅已售/未售套数；查询验证码已在浏览器流程中处理"
+        elif result.records:
+            result.status = "partial"
+            result.message = "阳光家缘项目记录部分完成，不能宣称全区完整覆盖"
+        else:
+            raise SourceError("阳光家缘未返回可用项目记录", "schema_changed")
+    except SourceError as exc:
+        result.status = "partial" if result.records else exc.status
+        result.message = str(exc)
+    except Exception as exc:
+        result.status = "partial" if result.records else "error"
+        result.message = f"{type(exc).__name__}: {exc}"
+    return result
+
 def collect_source(source, url, region, client, config, store):
     try:
         if source in ("fang", "lianjia"):
             return collect_list(source, url, region, client, config, store)
         if source == "nbs":
             return collect_nbs(url, region, client)
+        if source == "ygjy":
+            return collect_ygjy(url, region, client, config)
         result = SourceResult(source, region["id"])
         html = client.get(url)
         endpoints = re.findall(r"url\s*:\s*['\"](/ysqgk/Api/WebApi/mrxjspf(?:ks|ws|qy)xx\.ashx)['\"]", html)

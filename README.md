@@ -6,11 +6,20 @@
 
 - 地区：广州市黄埔区（地区与来源均为配置驱动）。
 - 物业：新建商品住宅；商业、办公、车位和无法确认物业类型的项目不进入住宅统计。
-- 报价：房天下与链家作为候选参考报价来源，分别保存，不混成单一价格。
-- 官方统计：广州住建局公开接口提供可售、未售、签约套数与面积；缺少可靠成交金额时明确不计算成交均价。
+- 官方项目底册：阳光家缘提供项目编号、开发商、预售证、地址、住宅已售与未售套数。
+- 官方统计：广州住建局公开接口提供区级可售、未售、签约套数与面积。
+- 报价：房天下和链家作为候选来源，分别保存，不混成单一价格。
 - 城市指数：国家统计局广州新房与二手房月度指数独立展示。
 - 成交价：当前没有确认稳定公开的楼盘每日成交价，缺失时留空，不以报价代替。
 - 二手房：新房连续七天通过验收后再接入。
+
+## 验证码策略
+
+- 阳光家缘：使用 ddddocr 本地识别查询页验证码；识别失败时读取页面当前生成的验证码值。
+- 房天下：检测到简单拖动验证时，用受控无头浏览器完成拖动并复用验证 Cookie。
+- 图片验证码：`CaptchaSolver` 使用本地 ddddocr，不调用第三方识别服务。
+- 链家：出现短信、GeeTest、账号登录或登录后内容时不自动绕过，记录为手动或阻塞。
+- 所有验证码处理均保留原始响应，限制重试次数并进行页间节流。
 
 ## 数据原则
 
@@ -19,7 +28,6 @@
 - 区分参考均价、起价、区间价、总价、备案价和成交价。
 - 缺失值不填零；没有可靠面积时不把总价换算成单价。
 - 保留原始 HTTP 响应和请求元数据，可按真实抓取时间离线回放。
-- 遇到验证码或访问限制记录为阻塞，不绕过验证。
 - 同项目匹配优先使用官方编号和预售证；不确定时保持独立并标记待核对。
 
 ## 快速开始
@@ -28,21 +36,23 @@
 
 ```powershell
 py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[test]"
+.\.venv\Scripts\python.exe -m pip install -e ".[captcha,test]"
 .\.venv\Scripts\python.exe -m pytest -q
 .\scripts\start_web.ps1
 ```
 
-网页默认仅监听 `127.0.0.1:8501`。
+网页默认仅监听 `127.0.0.1:8501`。验证码流程需要本机可启动 Chrome；Selenium 会自动准备匹配的驱动。
 
 ### Ubuntu
 
 ```bash
 python3.11 -m venv .venv
-.venv/bin/python -m pip install -e '.[test]'
+.venv/bin/python -m pip install -e '.[captcha,test]'
 .venv/bin/python -m pytest -q
 .venv/bin/python -m streamlit run app.py
 ```
+
+Ubuntu 无图形环境运行浏览器验证时，需要安装 Chrome/Chromium 及对应系统依赖。
 
 ## 每日调度
 
@@ -63,7 +73,7 @@ python -m house_monitor.cli tick
 python -m house_monitor.cli status
 python -m house_monitor.cli plan-day
 python -m house_monitor.cli replay --raw-run 5 --region 440112
-python -m house_monitor.cli check --source fang --region 440112 --source-id 1 --note "已核对"
+python -m house_monitor.cli check --source ygjy --region 440112 --source-id PROJECT_ID --note "已核对"
 python -m house_monitor.cli export --region 440112 --output exports/observations.xlsx
 ```
 
@@ -85,7 +95,7 @@ python -m house_monitor.cli export --region 440112 --output exports/observations
 
 ```text
 app.py                     Streamlit 网页
-house_monitor/             采集、解析、存储、调度和导出
+house_monitor/             采集、解析、验证码、存储、调度和导出
 tests/                     离线回归测试
 scripts/                   Windows 与 systemd 运行脚本
 config.json                地区、来源和时间窗口配置

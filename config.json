@@ -5,7 +5,8 @@
   "schedule_end": "12:00:00",
   "request_interval_seconds": 2,
   "request_timeout_seconds": 20,
-  "max_pages": 30,
+  "max_pages": 120,
+  "captcha_browser_enabled": true,
   "history_enabled": true,
   "history_refresh_days": 7,
   "regions": [
@@ -17,6 +18,7 @@
       "sources": {
         "fang": "https://gz.newhouse.fang.com/house/s/huangpu/",
         "lianjia": "https://gz.fang.lianjia.com/loupan/",
+        "ygjy": "https://zfcj.gz.gov.cn/zfcj/fyxx/fdcxmxx/index.html",
         "official": "https://zfcj.gz.gov.cn/zfcj/tjxx/spfxstjxx/",
         "nbs": "https://www.stats.gov.cn/sj/zxfb/"
       }

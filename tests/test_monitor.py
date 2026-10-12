@@ -10,7 +10,7 @@ from openpyxl import load_workbook
 from house_monitor.models import Observation, SourceResult
 from house_monitor.storage import Store
 from house_monitor.schedule import daily_target, tick
-from house_monitor.parsers import price, fang_list, fang_history, lianjia_list, official_json, nbs_indices
+from house_monitor.parsers import price, fang_list, fang_history, lianjia_list, official_json, ygjy_records, nbs_indices
 from house_monitor.http import robots_allowed, blocked, SourceError, Client
 from house_monitor.analytics import paired_changes, csv_bytes, excel_bytes
 from house_monitor.sources import collect_list
@@ -251,3 +251,33 @@ def test_replay_preserves_parse_failure_status(config):
     assert len(result["sources"])==1
     assert result["sources"][0]["source"]=="lianjia"
     assert result["sources"][0]["status"]=="schema_changed"
+
+def test_ygjy_project_records_keep_official_identity():
+    payload={"currentPage":1,"totalPage":95,"totalNum":947,"data":[{
+        "projectId":"official-project-id","projectName":"测试项目住宅","developer":"测试开发商",
+        "developerId":"developer-id","presell":"20260066","projectAddress":"黄埔区测试路1号",
+        "houseSoldNum":"6","houseUnsaleNum":"234"}]}
+    rows=ygjy_records(payload,"https://example.test/ygjy",REGION,"2026-10-12")
+    assert len(rows)==2
+    assert {r.kind for r in rows}=={"sold_count","unsold_count"}
+    assert {r.value for r in rows}=={6.0,234.0}
+    assert all(r.source=="ygjy" and r.source_id=="official-project-id" and r.presell=="20260066" for r in rows)
+
+def test_replay_supports_ygjy_pages(config):
+    root=Path(config["data_dir"])/"raw"/"101"
+    root.mkdir(parents=True)
+    api="https://zfcj.gz.gov.cn/ysqgk/Api/WebApi/fdcxmxxlb.ashx"
+    for page,project_id in ((1,"ygjy-1"),(2,"ygjy-2")):
+        payload={"currentPage":page,"totalPage":2,"totalNum":2,"data":[{
+            "projectId":project_id,"projectName":f"项目{page}","developer":"开发商","developerId":"dev",
+            "presell":f"2026000{page}","projectAddress":"黄埔区测试路","houseSoldNum":"1","houseUnsaleNum":"2"}]}
+        meta={"requested_url":api,"method":"POST","final_url":api,"status":200,
+              "fetched_at":f"2026-10-12T05:0{page}:00+00:00"}
+        (root/f"000{page}-ygjy.json").write_text(json.dumps(meta),encoding="utf-8")
+        (root/f"000{page}-ygjy.body").write_text(json.dumps(payload,ensure_ascii=False),encoding="utf-8")
+    result=replay(config,101,"440112")
+    assert len(result["sources"])==1
+    assert result["sources"][0]["status"]=="ok"
+    assert result["sources"][0]["discovered"]==2
+    rows=Store(config["data_dir"]).observations()
+    assert len(rows)==4 and {r["source_id"] for r in rows}=={"ygjy-1","ygjy-2"}

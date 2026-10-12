@@ -17,6 +17,6 @@ def load_config(path=None):
     if len({r["id"] for r in config["regions"]}) != len(config["regions"]):
         raise ValueError("地区编号重复")
     for region in config["regions"]:
-        if region.get("enabled") and set(region["sources"]) - {"fang", "lianjia", "official", "nbs"}:
+        if region.get("enabled") and set(region["sources"]) - {"fang", "lianjia", "official", "nbs", "ygjy"}:
             raise ValueError("配置包含尚未实现的数据源")
     return config

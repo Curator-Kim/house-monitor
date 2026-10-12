@@ -1,4 +1,4 @@
-"""有节流、原始响应和 robots 检查的普通 HTTP 客户端。无反爬绕过。"""
+"""有节流、原始响应和 robots 检查的普通 HTTP 客户端；验证码流程由上层显式处理。"""
 import hashlib
 import json
 import re
@@ -81,6 +81,30 @@ class Client:
         self.policies = {}
         self.counter = 0
 
+    def save_raw(self, url, content, method="GET", final_url=None, status=200, content_type=None):
+        """保存浏览器或接口取得的原始响应，保持与 HTTP 请求相同的可追溯格式。"""
+        body = content.encode("utf-8") if isinstance(content, str) else bytes(content)
+        self.counter += 1
+        stem = f"{self.counter:04d}-{hashlib.sha256(url.encode()).hexdigest()[:12]}"
+        (self.root / (stem + ".body")).write_bytes(body)
+        (self.root / (stem + ".json")).write_text(json.dumps({
+            "requested_url": url, "method": method, "final_url": final_url or url, "status": status,
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
+            "content_type": content_type,
+            "sha256": hashlib.sha256(body).hexdigest()
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+        return stem
+
+    def _solve_slider(self, challenge_url):
+        """用受控浏览器通过来源的简单拖动验证，并把 Cookie 带回普通会话。"""
+        from .browser import BrowserSession
+        with BrowserSession(self.config) as browser:
+            cookies = browser.drag_slider_to_end(challenge_url)
+        for cookie in cookies:
+            self.session.cookies.set(cookie["name"], cookie["value"], domain=cookie.get("domain"),
+                                     path=cookie.get("path", "/"))
+        self.last_request = time.monotonic()
+
     def _request(self, url, method="GET"):
         for attempt in range(3):
             time.sleep(max(0, self.config["request_interval_seconds"] - (time.monotonic() - self.last_request)))
@@ -88,16 +112,13 @@ class Client:
                 request = self.session.get if method == "GET" else self.session.post
                 r = request(url, timeout=self.config["request_timeout_seconds"])
                 self.last_request = time.monotonic()
-                self.counter += 1
-                stem = f"{self.counter:04d}-{hashlib.sha256(url.encode()).hexdigest()[:12]}"
-                (self.root / (stem + ".body")).write_bytes(r.content)
-                (self.root / (stem + ".json")).write_text(json.dumps({
-                    "requested_url": url, "method": method, "final_url": r.url, "status": r.status_code,
-                    "fetched_at": datetime.now(timezone.utc).isoformat(),
-                    "content_type": r.headers.get("Content-Type"),
-                    "sha256": hashlib.sha256(r.content).hexdigest()
-                }, ensure_ascii=False, indent=2), encoding="utf-8")
+                self.save_raw(url, r.content, method=method, final_url=r.url, status=r.status_code,
+                              content_type=r.headers.get("Content-Type"))
                 if blocked(r):
+                    if ("check.3g.fang.com" in r.url and attempt < 2
+                            and self.config.get("captcha_browser_enabled", True)):
+                        self._solve_slider(r.url)
+                        continue
                     raise SourceError(f"访问限制：HTTP {r.status_code}，{r.url}", "blocked")
                 if r.status_code >= 500 and attempt < 2:
                     time.sleep(2 ** attempt)

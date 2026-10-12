@@ -192,6 +192,36 @@ def nbs_indices(html, url, region):
     return records
 
 
+def ygjy_records(payload, url, region, period):
+    if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
+        raise SourceError("阳光家缘项目接口返回结构不符", "schema_changed")
+    records = []
+    for row in payload["data"]:
+        source_id = str(row.get("projectId") or "").strip()
+        name = str(row.get("projectName") or "").strip()
+        if not source_id or not name:
+            raise SourceError("阳光家缘项目缺少稳定编号或名称", "schema_changed")
+        address = str(row.get("projectAddress") or "").strip()
+        presell = str(row.get("presell") or "").strip() or None
+        extra = {"developer": row.get("developer"), "developerId": row.get("developerId")}
+        values = []
+        for field, kind in (("houseSoldNum", "sold_count"), ("houseUnsaleNum", "unsold_count")):
+            raw = row.get(field)
+            if raw in (None, ""):
+                continue
+            try:
+                value = float(raw)
+            except (TypeError, ValueError) as exc:
+                raise SourceError(f"阳光家缘项目 {source_id} 的 {field} 字段异常", "schema_changed") from exc
+            values.append(Observation("ygjy", source_id, name, url, region["id"], kind=kind, value=value,
+                                      unit="套", raw_price=str(raw), address=address,
+                                      period=period, granularity="snapshot", official_id=source_id,
+                                      presell=presell, extra=extra))
+        if not values:
+            raise SourceError(f"阳光家缘项目 {source_id} 缺少住宅套数字段", "schema_changed")
+        records.extend(values)
+    return records
+
 def official_json(payload, label, url, region):
     if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
         raise SourceError("官方统计接口返回结构不符", "schema_changed")

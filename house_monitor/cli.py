@@ -27,7 +27,7 @@ def main():
     e.add_argument("--region")
     e.add_argument("--output", default="exports/observations.xlsx")
     q = sub.add_parser("check", help="核对原页面后记录一项人工抽查")
-    q.add_argument("--source", required=True, choices=["fang", "lianjia", "official", "nbs"])
+    q.add_argument("--source", required=True, choices=["fang", "lianjia", "official", "ygjy", "nbs"])
     q.add_argument("--region", required=True)
     q.add_argument("--source-id", required=True)
     q.add_argument("--note", required=True)
