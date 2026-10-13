@@ -5,6 +5,8 @@ from filelock import Timeout
 from house_monitor.config import load_config
 from house_monitor.storage import Store
 from house_monitor.service import collect
+from house_monitor.auth import clear_auth, load_auth
+from house_monitor.browser import official_login
 from house_monitor.analytics import frame, paired_changes, csv_bytes, excel_bytes, LABELS, SOURCES
 
 st.set_page_config(page_title="住宅价格观察", page_icon="🏠", layout="wide")
@@ -18,6 +20,34 @@ if not regions:
     st.stop()
 region = st.sidebar.selectbox("地区", regions, format_func=lambda r: f"{r['city']} · {r['district']}区")
 st.sidebar.caption("只有已接入并配置的数据源对应地区可选。其他城市需新增适配器。")
+login_sources = [s for s in region.get("sources", {}) if s in ("lianjia",)]
+if login_sources:
+    with st.sidebar.expander("登录会话", expanded=False):
+        st.caption("登录页由源站官方页面承载；本站不接收账号密码或短信验证码。")
+        source = st.selectbox("数据源", login_sources, format_func=lambda s: SOURCES.get(s, s))
+        try:
+            auth = load_auth(config["data_dir"], source)
+        except Exception:
+            auth = None
+        if auth:
+            st.success(f"已保存登录会话：{len(auth.get('cookies', {}))} 个 Cookie")
+        else:
+            st.info("尚未保存登录会话")
+        if st.button("打开官方登录页", type="primary", key=f"official_login_{source}"):
+            try:
+                with st.spinner("请在打开的官方页面完成登录，成功后会自动保存并关闭窗口…"):
+                    info = official_login(config, source)
+                st.session_state["auth_notice"] = info["message"]
+                st.rerun()
+            except Exception as exc:
+                st.error(str(exc))
+        if auth and st.button("清除登录会话", key=f"clear_auth_{source}"):
+            clear_auth(config["data_dir"], source)
+            st.session_state["auth_notice"] = f"已清除 {source} 登录会话"
+            st.rerun()
+        notice = st.session_state.pop("auth_notice", None)
+        if notice:
+            st.success(notice)
 if st.sidebar.button("立即采集", type="primary"):
     try:
         with st.spinner("正在采集公开数据，历史回补可能需要数分钟…"):

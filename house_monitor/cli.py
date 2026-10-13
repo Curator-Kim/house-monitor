@@ -29,6 +29,8 @@ def main():
     login_parser.add_argument("--token", help="Authorization 请求头值")
     login_parser.add_argument("--header", action="append", default=[], help="额外请求头，可重复")
     login_parser.add_argument("--auth-file", help="包含 cookies 和 headers 的 JSON 文件")
+    login_parser.add_argument("--open", action="store_true", help="打开源站官方登录窗口并保存会话")
+    login_parser.add_argument("--url", help="覆盖官方登录入口")
     e = sub.add_parser("export")
     e.add_argument("--region")
     e.add_argument("--output", default="exports/observations.xlsx")
@@ -57,15 +59,19 @@ def main():
             from .replay import replay
             result = replay(config, args.raw_run, args.region)
         elif args.command == "login":
-            from .auth import save_auth
-            cookie, token = args.cookie, args.token
-            if not any((cookie, token, args.header, args.auth_file)):
-                import getpass
-                cookie = getpass.getpass("请粘贴浏览器 Cookie（可留空）: ").strip() or None
-                if not cookie:
-                    token = getpass.getpass("请粘贴 Authorization 令牌（可留空）: ").strip() or None
-            result = save_auth(config["data_dir"], args.source, cookie=cookie,
-                               token=token, headers=args.header, auth_file=args.auth_file)
+            if args.open:
+                from .browser import official_login
+                result = official_login(config, args.source, args.url)
+            else:
+                from .auth import save_auth
+                cookie, token = args.cookie, args.token
+                if not any((cookie, token, args.header, args.auth_file)):
+                    import getpass
+                    cookie = getpass.getpass("请粘贴浏览器 Cookie（可留空）: ").strip() or None
+                    if not cookie:
+                        token = getpass.getpass("请粘贴 Authorization 令牌（可留空）: ").strip() or None
+                result = save_auth(config["data_dir"], args.source, cookie=cookie,
+                                   token=token, headers=args.header, auth_file=args.auth_file)
         elif args.command == "check":
             if not store.rows("SELECT * FROM source_projects WHERE source=? AND region_id=? AND source_id=?", (args.source, args.region, args.source_id)):
                 parser.error("没有找到该来源项目")

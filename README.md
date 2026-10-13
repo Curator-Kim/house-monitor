@@ -18,7 +18,7 @@
 - 阳光家缘：使用 ddddocr 本地识别查询页验证码；识别失败时读取页面当前生成的验证码值。
 - 房天下：检测到简单拖动验证时，用受控无头浏览器完成拖动并复用验证 Cookie。
 - 图片验证码：`CaptchaSolver` 使用本地 ddddocr，不调用第三方识别服务。
-- 链家：服务端当前仅声明 `phone-code`、`username-password`、`oauth`，没有可采集的二维码登录接口；导入用户已有 Cookie/令牌后复用会话，不保存账号密码，也不绕过短信或行为验证。
+- 链家：网页端点击“打开官方登录页”，在官方页面完成手机号、短信或密码登录；程序不接触账号密码，只在成功后读取 Cookie。当前服务端没有二维码登录接口。
 - 所有验证码处理均保留原始响应，限制重试次数并进行页间节流。
 
 ## 数据原则
@@ -68,8 +68,7 @@ python -m house_monitor.cli tick
 ## 常用命令
 
 ```bash
-python -m house_monitor.cli login --source lianjia --cookie "name=value; name2=value2"
-python -m house_monitor.cli login --source lianjia --header "Authorization: Bearer TOKEN"
+python -m house_monitor.cli login --source lianjia --open
 python -m house_monitor.cli collect --region 440112
 python -m house_monitor.cli tick
 python -m house_monitor.cli status
