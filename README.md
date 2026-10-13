@@ -55,6 +55,8 @@ py -3.11 -m venv .venv
 
 网页默认仅监听 `127.0.0.1:8501`。验证码流程需要本机可启动 Chrome；Selenium 会自动准备匹配的驱动。
 
+如果项目目录已经存在可用的 `.venv`，无需重新执行 `python -m venv .venv`；直接运行 `.\scripts\start_web.ps1` 或 `.\.venv\Scripts\python.exe -m streamlit run app.py`。
+
 ### Ubuntu
 
 ```bash
@@ -76,6 +78,84 @@ python -m house_monitor.cli tick
 
 - Windows：运行 `scripts/install_windows_task.ps1` 注册每分钟检查的计划任务。
 - Ubuntu：安装 `scripts/house-monitor.service` 和 `scripts/house-monitor.timer` 到 systemd。
+
+## 停止与卸载
+
+前端服务和每日调度是两套独立机制：停止网页不会自动停止定时采集；禁用定时任务也不会关闭网页。
+
+### Windows
+
+前台启动的 Streamlit 会显示日志，直接在终端按 `Ctrl+C` 即可停止。
+
+后台启动时，停止由本项目启动的 Streamlit 进程：
+
+```powershell
+Get-CimInstance Win32_Process |
+  Where-Object { $_.CommandLine -like '*streamlit*run*app.py*' } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+查看计划任务状态：
+
+```powershell
+Get-ScheduledTask -TaskName HuangpuHouseMonitor
+Get-ScheduledTaskInfo -TaskName HuangpuHouseMonitor
+```
+
+暂时停止未来的自动采集，但保留任务配置：
+
+```powershell
+Disable-ScheduledTask -TaskName HuangpuHouseMonitor
+```
+
+重新启用：
+
+```powershell
+Enable-ScheduledTask -TaskName HuangpuHouseMonitor
+```
+
+停止当前正在运行的采集实例：
+
+```powershell
+Stop-ScheduledTask -TaskName HuangpuHouseMonitor
+```
+
+彻底删除计划任务：
+
+```powershell
+Unregister-ScheduledTask -TaskName HuangpuHouseMonitor -Confirm:$false
+```
+
+如果手动在后台运行了采集命令，可停止匹配的采集进程：
+
+```powershell
+Get-CimInstance Win32_Process |
+  Where-Object { $_.CommandLine -like '*house_monitor.cli*collect*' -or $_.CommandLine -like '*house_monitor.cli*tick*' } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+### Ubuntu
+
+前台 Streamlit 按 `Ctrl+C`；后台进程可使用：
+
+```bash
+pkill -f 'streamlit run app.py'
+```
+
+停止并禁止用户级定时器：
+
+```bash
+systemctl --user stop house-monitor.timer house-monitor.service
+systemctl --user disable house-monitor.timer house-monitor.service
+```
+
+重新启用：
+
+```bash
+systemctl --user enable --now house-monitor.timer
+```
+
+如果服务安装在系统级 systemd 中，将上述命令中的 `systemctl --user` 改为 `sudo systemctl`。
 
 ## 常用命令
 
