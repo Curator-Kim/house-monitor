@@ -121,6 +121,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start_web.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\start_web.ps1 -Port 8502
 ```
 
+无窗口后台启动（不弹出新的命令行黑框）：
+
+```powershell
+Start-Process -FilePath ".\.venv\Scripts\pythonw.exe" -ArgumentList @('-m','streamlit','run','app.py','--server.headless','true','--server.address','127.0.0.1','--server.port','8501') -WorkingDirectory (Get-Location) -WindowStyle Hidden
+```
+
 浏览器访问：
 
 ```text
