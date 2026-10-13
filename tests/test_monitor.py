@@ -281,3 +281,8 @@ def test_replay_supports_ygjy_pages(config):
     assert result["sources"][0]["discovered"]==2
     rows=Store(config["data_dir"]).observations()
     assert len(rows)==4 and {r["source_id"] for r in rows}=={"ygjy-1","ygjy-2"}
+
+def test_fang_citywide_filter_accepts_any_district():
+    html = page(card("9", area="番禺"))
+    rows, ids, nxt, total = fang_list(html, URL, {"id": "sz-all", "city": "深圳", "district": "全市"})
+    assert len(rows) == 1 and rows[0].source_id == "9"

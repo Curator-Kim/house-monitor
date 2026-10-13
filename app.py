@@ -2,10 +2,11 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 from filelock import Timeout
-from house_monitor.config import load_config
+from house_monitor.config import add_region, load_config
 from house_monitor.storage import Store
 from house_monitor.service import collect
 from house_monitor.auth import clear_auth, load_auth, save_auth
+from house_monitor.cities import CITY_CATALOG
 from house_monitor.analytics import frame, paired_changes, csv_bytes, excel_bytes, LABELS, SOURCES
 
 st.set_page_config(page_title="住宅价格观察", page_icon="🏠", layout="wide")
@@ -18,7 +19,35 @@ if not regions:
     st.warning("尚未配置已支持地区")
     st.stop()
 region = st.sidebar.selectbox("地区", regions, format_func=lambda r: f"{r['city']} · {r['district']}区")
-st.sidebar.caption("只有已接入并配置的数据源对应地区可选。其他城市需新增适配器。")
+st.sidebar.caption("只有已接入并配置的数据源对应地区可选。其他城市可先添加地区。")
+with st.sidebar.expander("城市管理", expanded=False):
+    st.caption("从预置清单添加城市；链家仍需在下方保存登录会话。")
+    city_labels = [f"{city['name']} · {city['province']}" for city in CITY_CATALOG]
+    city_options = city_labels + ["自定义城市"]
+    city_choice = st.selectbox("添加城市", city_options, key="city_choice")
+    if city_choice == "自定义城市":
+        custom_name = st.text_input("城市名称", key="custom_city_name")
+        custom_slug = st.text_input("城市域名标识", placeholder="例如 sz、hz、cd", key="custom_city_slug")
+        new_city = {"name": custom_name.strip(), "slug": custom_slug.strip().lower()}
+    else:
+        catalog_index = city_labels.index(city_choice)
+        new_city = CITY_CATALOG[catalog_index]
+    new_district = st.text_input("行政区或关键词（留空为全市）", key="new_city_district")
+    if st.button("添加并启用", key="add_city_region"):
+        try:
+            result = add_region(config["config_path"], new_city, new_district)
+            if result["created"]:
+                st.session_state["region_notice"] = f"已添加并启用：{result['region']['city']} · {result['region']['district']}"
+            else:
+                st.session_state["region_notice"] = f"该地区已存在：{result['region']['city']} · {result['region']['district']}"
+            st.rerun()
+        except Exception as exc:
+            st.error(str(exc))
+    region_notice = st.session_state.pop("region_notice", None)
+    if region_notice:
+        st.success(region_notice)
+    enabled_regions = [f"{r['city']} · {r['district']}" for r in config["regions"] if r.get("enabled")]
+    st.caption("已启用：" + "；".join(enabled_regions))
 login_sources = [s for s in region.get("sources", {}) if s in ("lianjia",)]
 if login_sources:
     with st.sidebar.expander("登录会话", expanded=False):

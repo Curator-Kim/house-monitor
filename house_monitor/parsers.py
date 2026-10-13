@@ -53,7 +53,8 @@ def fang_list(html, url, region):
         tags = text(card.select_one(".fangyuan"))
         if not name_node or not address or not tags:
             raise SourceError(f"项目 {source_id} 缺少必要字段", "schema_changed")
-        if f"[{region['district']}]" not in address.replace(" ", ""):
+        district = region.get("district") or ""
+        if district and district != "全市" and f"[{district}]" not in address.replace(" ", ""):
             continue
         if not card.select_one(".inSale") or "在售" not in tags or not any(t in tags for t in ("住宅", "别墅", "洋房", "叠拼", "联排", "独栋")):
             continue
@@ -118,7 +119,8 @@ def lianjia_list(html, url, region):
         location = text(card.select_one(".resblock-location"))
         kind = text(card.select_one(".resblock-type"))
         sale = text(card.select_one(".sale-status"))
-        if region["district"] not in location or sale != "在售" or kind not in ("住宅", "别墅"):
+        district = region.get("district") or ""
+        if (district and district != "全市" and district not in location) or sale != "在售" or kind not in ("住宅", "别墅"):
             continue
         main = card.select_one(".main-price")
         records.append(Observation("lianjia", m[1], text(a), urljoin(url, a["href"]), region["id"],
