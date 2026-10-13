@@ -69,46 +69,7 @@ def apply_auth(client, source):
     payload = load_auth(client.config["data_dir"], source)
     if not payload:
         return False
-    details = payload.get("cookie_details")
-    if details:
-        for cookie in details:
-            client.session.cookies.set(
-                cookie["name"], cookie["value"], domain=cookie.get("domain"),
-                path=cookie.get("path", "/"), secure=bool(cookie.get("secure", False)))
-    else:
-        for name, value in payload["cookies"].items():
-            client.session.cookies.set(name, value)
+    for name, value in payload["cookies"].items():
+        client.session.cookies.set(name, value)
     client.session.headers.update(payload["headers"])
     return True
-
-def save_cookie_list(data_dir, source, cookies, headers=None):
-    details = []
-    for cookie in cookies or []:
-        if not cookie.get("name"):
-            continue
-        details.append({key: cookie.get(key) for key in
-                        ("name", "value", "domain", "path", "secure", "httpOnly", "sameSite", "expiry")
-                        if cookie.get(key) is not None})
-    if not details:
-        raise SourceError("登录完成，但没有取得可保存的 Cookie", "auth_invalid")
-    payload = {"source": source,
-               "created_at": datetime.now().astimezone().isoformat(timespec="seconds"),
-               "cookies": {item["name"]: item["value"] for item in details},
-               "cookie_details": details,
-               "headers": headers or {}}
-    path = _path(data_dir, source)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    try:
-        path.chmod(0o600)
-    except OSError:
-        pass
-    return {"source": source, "auth_file": str(path.resolve()),
-            "cookies": len(details), "headers": sorted(payload["headers"])}
-
-
-def clear_auth(data_dir, source):
-    path = _path(data_dir, source)
-    if path.exists():
-        path.unlink()
-        return True
-    return False

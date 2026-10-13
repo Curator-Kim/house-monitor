@@ -1,13 +1,11 @@
 """受控浏览器会话，用于公开查询页面的验证码与 JavaScript 数据接口。"""
-from time import monotonic, sleep
-from urllib.parse import urlencode, urlsplit
+from time import sleep
+from urllib.parse import urlencode
 from .http import SourceError, UA
-from .auth import save_cookie_list
 
 
 class BrowserSession:
-    def __init__(self, config, headless=True):
-        self.headless = headless
+    def __init__(self, config):
         self.config = config
         self.driver = None
         self.wait = None
@@ -19,15 +17,12 @@ class BrowserSession:
         except ImportError as exc:
             raise SourceError("未安装 selenium，无法处理浏览器验证码", "dependency_missing") from exc
         options = webdriver.ChromeOptions()
-        if self.headless:
-            options.add_argument("--headless=new")
-            options.add_argument("--window-size=1440,1200")
-            options.add_argument(f"--user-agent={UA}")
-        else:
-            options.add_argument("--start-maximized")
+        options.add_argument("--headless=new")
         options.add_argument("--disable-gpu")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--window-size=1440,1200")
+        options.add_argument(f"--user-agent={UA}")
         self.driver = webdriver.Chrome(options=options)
         self.wait = WebDriverWait(self.driver, self.config.get("request_timeout_seconds", 20) + 20)
         return self
@@ -93,46 +88,3 @@ class BrowserSession:
             if "check.3g.fang.com" not in self.driver.current_url:
                 return self.driver.get_cookies()
         raise SourceError("拖动验证未通过", "captcha_failed")
-
-def _lianjia_login_complete(driver):
-    from selenium.webdriver.common.by import By
-
-    parts = urlsplit(driver.current_url)
-    if "clogin" in parts.netloc or "login" in parts.path.lower():
-        return False
-    if parts.netloc == "gz.fang.lianjia.com" and (driver.find_elements(By.CSS_SELECTOR, ".resblock-list")
-                                                  or driver.find_elements(By.CSS_SELECTOR, ".filter-container")
-                                                  or driver.find_elements(By.CSS_SELECTOR, ".user-wrapper")):
-        return True
-    return False
-
-
-def official_login(config, source, url=None, timeout=None):
-    """打开官方登录页，等待用户完成登录，只保存登录后的 Cookie。"""
-    urls = {"lianjia": "https://gz.fang.lianjia.com/loupan/huangpuqu/"}
-    login_url = url or urls.get(source)
-    if not login_url:
-        raise SourceError(f"未配置 {source} 的官方登录入口", "auth_required")
-    if source != "lianjia":
-        raise SourceError(f"{source} 暂未实现官方登录窗口", "auth_required")
-    timeout = timeout or config.get("login_timeout_seconds", 300)
-    with BrowserSession(config, headless=False) as browser:
-        try:
-            browser.driver.get(login_url)
-        except Exception as exc:
-            raise SourceError(f"无法打开官方登录页：{exc}", "auth_required") from exc
-        deadline = monotonic() + timeout
-        while monotonic() < deadline:
-            try:
-                if _lianjia_login_complete(browser.driver):
-                    cookies = browser.driver.get_cookies()
-                    user_agent = browser.driver.execute_script("return navigator.userAgent")
-                    saved = save_cookie_list(config["data_dir"], source, cookies,
-                                             headers={"User-Agent": user_agent})
-                    return {**saved, "status": "ok", "message": "官方登录完成，已保存本地会话"}
-            except SourceError:
-                raise
-            except Exception as exc:
-                raise SourceError("登录窗口已关闭或无法读取登录状态", "auth_required") from exc
-            sleep(1)
-    raise SourceError("等待官方登录超时，未保存登录会话", "auth_required")
