@@ -5,6 +5,7 @@ from filelock import Timeout
 from house_monitor.config import load_config
 from house_monitor.storage import Store
 from house_monitor.service import collect
+from house_monitor.auth import clear_auth, load_auth, save_auth
 from house_monitor.analytics import frame, paired_changes, csv_bytes, excel_bytes, LABELS, SOURCES
 
 st.set_page_config(page_title="住宅价格观察", page_icon="🏠", layout="wide")
@@ -18,6 +19,37 @@ if not regions:
     st.stop()
 region = st.sidebar.selectbox("地区", regions, format_func=lambda r: f"{r['city']} · {r['district']}区")
 st.sidebar.caption("只有已接入并配置的数据源对应地区可选。其他城市需新增适配器。")
+login_sources = [s for s in region.get("sources", {}) if s in ("lianjia",)]
+if login_sources:
+    with st.sidebar.expander("登录会话", expanded=False):
+        st.caption("仅在本机保存 Cookie 或 Authorization 令牌；不保存账号密码。")
+        source = st.selectbox("数据源", login_sources, format_func=lambda s: SOURCES.get(s, s))
+        try:
+            auth = load_auth(config["data_dir"], source)
+        except Exception:
+            auth = None
+        if auth:
+            st.success(f"已保存：{len(auth.get('cookies', {}))} 个 Cookie，{len(auth.get('headers', {}))} 个请求头")
+        else:
+            st.info("尚未保存登录会话")
+        cookie = st.text_input("Cookie", type="password", key=f"cookie_{source}")
+        token = st.text_input("Authorization", type="password", key=f"token_{source}")
+        if st.button("保存登录会话", key=f"save_auth_{source}"):
+            try:
+                info = save_auth(config["data_dir"], source, cookie=cookie, token=token)
+                st.session_state[f"cookie_{source}"] = ""
+                st.session_state[f"token_{source}"] = ""
+                st.session_state["auth_notice"] = f"已保存 {source} 登录会话：{info['cookies']} 个 Cookie、{len(info['headers'])} 个请求头"
+                st.rerun()
+            except Exception as exc:
+                st.error(str(exc))
+        if auth and st.button("清除登录会话", key=f"clear_auth_{source}"):
+            clear_auth(config["data_dir"], source)
+            st.session_state["auth_notice"] = f"已清除 {source} 登录会话"
+            st.rerun()
+        notice = st.session_state.pop("auth_notice", None)
+        if notice:
+            st.success(notice)
 if st.sidebar.button("立即采集", type="primary"):
     try:
         with st.spinner("正在采集公开数据，历史回补可能需要数分钟…"):

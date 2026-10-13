@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 import requests
-from house_monitor.auth import apply_auth, load_auth, parse_cookie_header, save_auth
+from house_monitor.auth import apply_auth, clear_auth, load_auth, parse_cookie_header, save_auth
 
 
 def test_parse_cookie_header():
@@ -39,3 +39,10 @@ def test_auth_file_can_merge_cookies(tmp_path):
     payload = load_auth(tmp_path / "data", "lianjia")
     assert payload["cookies"] == {"a": "1", "b": "2"}
     assert payload["headers"] == {"X-A": "1"}
+
+def test_clear_auth(tmp_path):
+    save_auth(tmp_path, "lianjia", cookie="sid=abc")
+    assert load_auth(tmp_path, "lianjia") is not None
+    assert clear_auth(tmp_path, "lianjia") is True
+    assert load_auth(tmp_path, "lianjia") is None
+    assert clear_auth(tmp_path, "lianjia") is False

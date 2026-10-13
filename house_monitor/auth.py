@@ -73,3 +73,10 @@ def apply_auth(client, source):
         client.session.cookies.set(name, value)
     client.session.headers.update(payload["headers"])
     return True
+
+def clear_auth(data_dir, source):
+    path = _path(data_dir, source)
+    if path.exists():
+        path.unlink()
+        return True
+    return False
