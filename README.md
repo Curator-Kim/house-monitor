@@ -42,43 +42,160 @@
 - 保留原始 HTTP 响应和请求元数据，可按真实抓取时间离线回放。
 - 同项目匹配优先使用官方编号和预售证；不确定时保持独立并标记待核对。
 
-## 快速开始
+## 环境要求
+
+项目需要 Python 3.11 或更高版本，并建议使用项目根目录下的 `.venv`。
+
+先检查本机 Python：
+
+```powershell
+py -0p
+```
+
+如果只有 Python 3.10 或更低版本，先安装 Python 3.11：
+
+```powershell
+winget install -e --id Python.Python.3.11
+```
+
+安装完成后关闭并重新打开 PowerShell，再执行：
+
+```powershell
+py -0p
+```
+
+### Windows 首次创建环境
+
+```powershell
+cd D:\OverlordShampoo\房价数据采集
+py -3.11 -m venv .venv
+& .\.venv\Scripts\python.exe -m ensurepip --upgrade
+& .\.venv\Scripts\python.exe -m pip install -e ".[captcha,test]"
+& .\.venv\Scripts\python.exe -m pytest -q
+```
+
+如果项目已经存在 `.venv`，先检查它的 Python 版本：
+
+```powershell
+& .\.venv\Scripts\python.exe -c "import sys; print(sys.version)"
+```
+
+如果低于 3.11，请停止前端后重建环境。旧环境先改名保留，不要直接删除：
+
+```powershell
+Rename-Item .venv .venv-old
+py -3.11 -m venv .venv
+& .\.venv\Scripts\python.exe -m ensurepip --upgrade
+& .\.venv\Scripts\python.exe -m pip install -e ".[captcha,test]"
+```
+
+### Ubuntu 首次创建环境
+
+```bash
+cd ~/house-monitor
+python3.11 -m venv .venv
+.venv/bin/python -m pip install -e '.[captcha,test]'
+.venv/bin/python -m pytest -q
+```
+## 日常启动前端
 
 ### Windows
 
+进入项目目录后启动：
+
 ```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[captcha,test]"
-.\.venv\Scripts\python.exe -m pytest -q
-.\scripts\start_web.ps1
+cd D:\OverlordShampoo\房价数据采集
+& .\.venv\Scripts\python.exe -m streamlit run app.py --server.address 127.0.0.1 --server.port 8501
 ```
 
-网页默认仅监听 `127.0.0.1:8501`。验证码流程需要本机可启动 Chrome；Selenium 会自动准备匹配的驱动。
+也可以使用项目脚本：
 
-如果项目目录已经存在可用的 `.venv`，无需重新执行 `python -m venv .venv`；直接运行 `.\scripts\start_web.ps1` 或 `.\.venv\Scripts\python.exe -m streamlit run app.py`。
+```powershell
+cd D:\OverlordShampoo\房价数据采集
+powershell -ExecutionPolicy Bypass -File .\scripts\start_web.ps1
+```
+
+指定端口：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start_web.ps1 -Port 8502
+```
+
+浏览器访问：
+
+```text
+http://127.0.0.1:8501
+```
+
+如果 `8501` 已占用，改用其他端口：
+
+```powershell
+& .\.venv\Scripts\python.exe -m streamlit run app.py --server.address 127.0.0.1 --server.port 8502
+```
 
 ### Ubuntu
 
 ```bash
-python3.11 -m venv .venv
-.venv/bin/python -m pip install -e '.[captcha,test]'
-.venv/bin/python -m pytest -q
-.venv/bin/python -m streamlit run app.py
+cd ~/house-monitor
+.venv/bin/python -m streamlit run app.py --server.address 127.0.0.1 --server.port 8501
 ```
 
-Ubuntu 无图形环境运行浏览器验证时，需要安装 Chrome/Chromium 及对应系统依赖。
+验证码流程需要本机可启动 Chrome/Chromium；Selenium 会使用对应的浏览器驱动。
 
 ## 每日调度
 
-北京时间 `09:00–12:00` 之间为每天持久化一个随机采集时刻。同一日期重启不会重新抽取；错过时补采一次；不会连续补跑遗漏日期。调度入口为：
+每日调度不是常驻 Python 进程。系统计划任务每分钟调用一次 `tick`，程序在当天北京时间 `09:00–12:00` 的随机时刻执行采集。同一日期重启不会重新抽取；错过时补采一次；不会连续补跑遗漏日期。
 
-```bash
-python -m house_monitor.cli tick
+手动执行一次到期检查：
+
+```powershell
+& .\.venv\Scripts\python.exe -m house_monitor.cli tick
 ```
 
-- Windows：运行 `scripts/install_windows_task.ps1` 注册每分钟检查的计划任务。
-- Ubuntu：安装 `scripts/house-monitor.service` 和 `scripts/house-monitor.timer` 到 systemd。
+立即执行一次完整采集：
 
+```powershell
+& .\.venv\Scripts\python.exe -m house_monitor.cli collect --region 440112
+```
+
+### Windows 定时采集
+
+安装并启用 Windows 计划任务：
+
+```powershell
+cd D:\OverlordShampoo\房价数据采集
+powershell -ExecutionPolicy Bypass -File .\scripts\install_windows_task.ps1
+```
+
+查看任务状态：
+
+```powershell
+Get-ScheduledTask -TaskName HuangpuHouseMonitor
+Get-ScheduledTaskInfo -TaskName HuangpuHouseMonitor
+```
+
+任务名称为 `HuangpuHouseMonitor`，安装后每分钟检查一次，到期时运行 `house_monitor.cli tick`。
+
+### Ubuntu 定时采集
+
+安装用户级 systemd 服务：
+
+```bash
+cd ~/house-monitor
+mkdir -p ~/.config/systemd/user
+cp scripts/house-monitor.service scripts/house-monitor.timer ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now house-monitor.timer
+```
+
+查看状态：
+
+```bash
+systemctl --user status house-monitor.timer
+systemctl --user list-timers house-monitor.timer
+```
+
+如果项目不在 `~/house-monitor`，先修改 `scripts/house-monitor.service` 中的 `WorkingDirectory` 和 `ExecStart`。
 ## 停止与卸载
 
 前端服务和每日调度是两套独立机制：停止网页不会自动停止定时采集；禁用定时任务也不会关闭网页。
