@@ -1,5 +1,4 @@
 {
-  "data_dir": "data",
   "timezone": "Asia/Shanghai",
   "schedule_start": "09:00:00",
   "schedule_end": "12:00:00",
@@ -22,6 +21,18 @@
         "official": "https://zfcj.gz.gov.cn/zfcj/tjxx/spfxstjxx/",
         "nbs": "https://www.stats.gov.cn/sj/zxfb/"
       }
+    },
+    {
+      "id": "bj-全市",
+      "city": "北京",
+      "district": "全市",
+      "enabled": true,
+      "sources": {
+        "fang": "https://bj.newhouse.fang.com/house/s/",
+        "lianjia": "https://bj.fang.lianjia.com/loupan/",
+        "nbs": "https://www.stats.gov.cn/sj/zxfb/"
+      }
     }
-  ]
+  ],
+  "data_dir": "data"
 }

@@ -140,6 +140,11 @@ cd ~/house-monitor
 .venv/bin/python -m streamlit run app.py --server.address 127.0.0.1 --server.port 8501
 ```
 
+前端主要页面：
+
+- `关注楼盘`：选择当前地区的报价楼盘加入关注，展示关注楼盘的历史参考单价变化。
+- `覆盖与运行`：查看来源验证阶段、覆盖率和任务记录。
+- `运行日志`：查看最近一次来源采集结果、历史运行记录以及 `data/monitor.log` 的最近 300 行，并可下载完整日志。
 验证码流程需要本机可启动 Chrome/Chromium；Selenium 会使用对应的浏览器驱动。
 
 ## 每日调度
@@ -174,7 +179,7 @@ Get-ScheduledTask -TaskName HuangpuHouseMonitor
 Get-ScheduledTaskInfo -TaskName HuangpuHouseMonitor
 ```
 
-任务名称为 `HuangpuHouseMonitor`，安装后每分钟检查一次，到期时运行 `house_monitor.cli tick`。
+任务名称为 `HuangpuHouseMonitor`，安装后每分钟检查一次，到期时通过 `pythonw.exe` 运行 `house_monitor.cli tick`，不会弹出命令行黑框。已经安装过旧版本任务时，重新运行安装脚本即可更新任务动作。
 
 ### Ubuntu 定时采集
 

@@ -1,4 +1,6 @@
+from collections import deque
 from datetime import date
+from pathlib import Path
 import pandas as pd
 import streamlit as st
 from filelock import Timeout
@@ -90,7 +92,7 @@ if st.sidebar.button("立即采集", type="primary"):
         st.sidebar.error(str(exc))
 st.sidebar.button("刷新页面")
 df = frame(store, region["id"])
-tabs = st.tabs(["楼盘报价", "官方指标与月度指数", "覆盖与运行", "数据导出"])
+tabs = st.tabs(["楼盘报价", "官方指标与月度指数", "关注楼盘", "覆盖与运行", "运行日志", "数据导出"])
 filtered = df.copy()
 with tabs[0]:
     st.info("平台参考报价与成交价分别记录。当前尚未验证可获取可靠的楼盘每日成交价。")
@@ -155,6 +157,50 @@ with tabs[1]:
         else:
             st.caption("尚未取得月度指数，不能以报价代替。")
 with tabs[2]:
+    st.subheader("关注楼盘")
+    quote_projects = df[df.source.isin(["fang", "lianjia"])][["source", "region_id", "source_id", "name"]].drop_duplicates()
+    if quote_projects.empty:
+        st.caption("当前地区尚无可关注的报价楼盘。")
+    else:
+        quote_projects = quote_projects.copy()
+        quote_projects["option"] = quote_projects["source"] + "|" + quote_projects["region_id"] + "|" + quote_projects["source_id"]
+        project_labels = quote_projects.set_index("option")["name"].to_dict()
+        selected = st.multiselect("添加关注楼盘", options=list(project_labels), format_func=lambda key: project_labels.get(key, key))
+        if st.button("添加关注", key="add_watch"):
+            for option in selected:
+                row = quote_projects[quote_projects.option == option].iloc[0]
+                store.add_watch(row["source"], row["region_id"], row["source_id"], row["name"], pd.Timestamp.now(tz="Asia/Shanghai").isoformat())
+            st.success("已更新关注列表")
+            st.rerun()
+    watched = store.watchlist()
+    if watched:
+        watch = pd.DataFrame(watched).rename(columns={"name": "watch_name"})
+        region_labels = {r["id"]: f"{r['city']} · {r['district']}" for r in config["regions"]}
+        watch["region_label"] = watch.region_id.map(region_labels).fillna(watch.region_id)
+        history = frame(store).merge(watch[["source", "region_id", "source_id", "watch_name", "region_label"]],
+                                     on=["source", "region_id", "source_id"], how="inner")
+        history = history[(history.kind == "reference_unit") & history.value.notna()].copy()
+        history["series"] = history.watch_name + " · " + history.region_label + " · " + history.source.map(SOURCES)
+        if history.empty:
+            st.caption("关注楼盘尚无参考单价历史；运行采集后会自动补齐。")
+        else:
+            st.subheader("历史参考单价")
+            st.line_chart(history.pivot_table(index="period", columns="series", values="value", aggfunc="mean"), y_label="元/平方米")
+            st.dataframe(history[["series", "period", "value", "unit", "granularity", "url"]].sort_values(["series", "period"]),
+                         hide_index=True, width="stretch")
+        st.subheader("管理关注")
+        watch_options = watch["source"] + "|" + watch["region_id"] + "|" + watch["source_id"]
+        watch_labels = dict(zip(watch_options, watch["watch_name"]))
+        remove = st.multiselect("移除关注楼盘", options=list(watch_labels), format_func=lambda key: watch_labels.get(key, key))
+        if st.button("移除关注", key="remove_watch"):
+            for option in remove:
+                source, region_id, source_id = option.split("|", 2)
+                store.remove_watch(source, region_id, source_id)
+            st.success("已移除关注")
+            st.rerun()
+    else:
+        st.caption("尚未添加关注楼盘。")
+with tabs[3]:
     st.subheader("来源覆盖与验证阶段")
     gates = pd.DataFrame(store.gates())
     st.dataframe(gates, hide_index=True, width="stretch")
@@ -168,7 +214,32 @@ with tabs[2]:
     st.dataframe(store.rows("SELECT * FROM runs ORDER BY id DESC LIMIT 20"),hide_index=True,width="stretch")
     st.subheader("每日随机时刻")
     st.dataframe(store.rows("SELECT * FROM schedules ORDER BY day DESC LIMIT 7"),hide_index=True,width="stretch")
-with tabs[3]:
+with tabs[4]:
+    st.subheader("最近一次采集")
+    runs = store.rows("SELECT * FROM runs ORDER BY id DESC LIMIT 1")
+    if runs:
+        latest = runs[0]
+        st.write(f"运行编号 {latest['id']} · 状态 {latest['status']} · 开始 {latest['started']} · 结束 {latest['finished']}")
+        source_logs = store.rows("""SELECT source,status,discovered,eligible,parsed,missing,pages,complete,message,warnings
+                                     FROM source_runs WHERE run_id=? ORDER BY source""", (latest["id"],))
+        if source_logs:
+            st.dataframe(pd.DataFrame(source_logs), hide_index=True, width="stretch")
+        st.caption("发现数为列表或接口发现的项目数；合格数是通过住宅筛选的项目数；完整分页不代表全区绝对覆盖。")
+    else:
+        st.caption("尚无运行记录。")
+    st.subheader("历史运行记录")
+    st.dataframe(store.rows("SELECT id,started,finished,status,message FROM runs ORDER BY id DESC LIMIT 50"), hide_index=True, width="stretch")
+    st.subheader("运行日志文件")
+    log_path = Path(config["data_dir"]) / "monitor.log"
+    if log_path.exists():
+        with log_path.open("r", encoding="utf-8", errors="replace") as handle:
+            recent = "".join(deque(handle, maxlen=300))
+        st.caption("显示最后 300 行；下载按钮保留完整日志。")
+        st.text_area("采集日志", recent, height=420, disabled=True)
+        st.download_button("下载完整运行日志", log_path.read_bytes(), "monitor.log", "text/plain")
+    else:
+        st.caption("尚未生成 data/monitor.log。")
+with tabs[5]:
     st.caption("导出内容与当前选择一致，含来源、原始价格、缺失原因和真实采集时间。")
     export_scope = st.radio("导出范围", ["当前报价筛选", "当前地区全部数据"], horizontal=True)
     export = filtered if export_scope == "当前报价筛选" else df

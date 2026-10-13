@@ -33,6 +33,10 @@ CREATE TABLE IF NOT EXISTS schedules (
 CREATE TABLE IF NOT EXISTS quality_checks (
  source TEXT, region_id TEXT, source_id TEXT, checked_at TEXT, note TEXT,
  PRIMARY KEY(source, region_id, source_id));
+CREATE TABLE IF NOT EXISTS watchlist (
+ source TEXT NOT NULL, region_id TEXT NOT NULL, source_id TEXT NOT NULL,
+ name TEXT NOT NULL, created_at TEXT NOT NULL,
+ PRIMARY KEY(source, region_id, source_id));
 CREATE INDEX IF NOT EXISTS obs_filter ON observations(region_id, granularity, period, source);
 """
 
@@ -133,6 +137,21 @@ class Store:
                  JOIN source_projects s ON s.source=o.source AND s.source_id=o.source_id AND s.region_id=o.region_id"""
         return self.rows(sql + (" WHERE o.region_id=?" if region_id else ""), (region_id,) if region_id else ())
 
+    def add_watch(self, source, region_id, source_id, name, created_at):
+        with self.connect() as c:
+            c.execute("""INSERT INTO watchlist(source,region_id,source_id,name,created_at)
+                         VALUES (?,?,?,?,?)
+                         ON CONFLICT(source,region_id,source_id) DO UPDATE SET
+                         name=excluded.name,created_at=excluded.created_at""",
+                      (source, region_id, source_id, name, created_at))
+
+    def remove_watch(self, source, region_id, source_id):
+        with self.connect() as c:
+            c.execute("DELETE FROM watchlist WHERE source=? AND region_id=? AND source_id=?",
+                      (source, region_id, source_id))
+
+    def watchlist(self):
+        return self.rows("SELECT * FROM watchlist ORDER BY created_at DESC, name")
     def gates(self):
         # 连续三天完整采集 + 至少10个独立项目人工抽查通过（不足则全查）。
         from datetime import date, timedelta

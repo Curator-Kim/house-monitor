@@ -286,3 +286,13 @@ def test_fang_citywide_filter_accepts_any_district():
     html = page(card("9", area="番禺"))
     rows, ids, nxt, total = fang_list(html, URL, {"id": "sz-all", "city": "深圳", "district": "全市"})
     assert len(rows) == 1 and rows[0].source_id == "9"
+
+def test_watchlist_add_remove(config):
+    store = Store(config["data_dir"])
+    store.add_watch("fang", "440112", "1", "测试楼盘", "2026-10-13T10:00:00+08:00")
+    rows = store.watchlist()
+    assert len(rows) == 1 and rows[0]["name"] == "测试楼盘"
+    store.add_watch("fang", "440112", "1", "更新名称", "2026-10-13T11:00:00+08:00")
+    assert store.watchlist()[0]["name"] == "更新名称"
+    store.remove_watch("fang", "440112", "1")
+    assert store.watchlist() == []
