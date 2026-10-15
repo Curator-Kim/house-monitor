@@ -23,6 +23,12 @@ def main():
     replay_parser = sub.add_parser("replay", help="重新解析原始响应，保留真实抓取时间")
     replay_parser.add_argument("--raw-run", type=int, required=True)
     replay_parser.add_argument("--region", required=True)
+    backfill_parser = sub.add_parser("backfill", help="回补来源真实提供的历史数据")
+    backfill_parser.add_argument("--source", required=True, choices=["nbs", "fang"])
+    backfill_parser.add_argument("--region")
+    backfill_parser.add_argument("--months", type=int, default=36, help="统计局回补月数")
+    backfill_parser.add_argument("--pages", type=int, default=120, help="统计局列表最大翻页数")
+    backfill_parser.add_argument("--limit", type=int, help="房天下最多检查项目数")
     login_parser = sub.add_parser("login", help="导入用户已有的 Cookie 或令牌，不保存账号密码")
     login_parser.add_argument("--source", required=True, choices=["lianjia"])
     login_parser.add_argument("--cookie", help="浏览器 Cookie 请求头，例如 name=value; name2=value2")
@@ -56,6 +62,15 @@ def main():
         elif args.command == "replay":
             from .replay import replay
             result = replay(config, args.raw_run, args.region)
+        elif args.command == "backfill":
+            from .backfill import backfill_fang_history, backfill_nbs
+            regions = [r for r in config["regions"] if r.get("enabled") and (not args.region or r["id"] == args.region)]
+            if not regions:
+                parser.error("没有找到启用的地区")
+            if args.source == "nbs":
+                result = backfill_nbs(config, regions, months=args.months, pages=args.pages)
+            else:
+                result = backfill_fang_history(config, regions, limit=args.limit)
         elif args.command == "login":
             from .auth import save_auth
             cookie, token = args.cookie, args.token

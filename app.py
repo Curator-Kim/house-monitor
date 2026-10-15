@@ -239,6 +239,26 @@ with tabs[4]:
         st.download_button("下载完整运行日志", log_path.read_bytes(), "monitor.log", "text/plain")
     else:
         st.caption("尚未生成 data/monitor.log。")
+    st.subheader("历史数据回补")
+    st.caption("只回补来源真实提供的历史记录；住建局和阳光家缘没有可回补的历史接口。")
+    backfill_col1, backfill_col2 = st.columns(2)
+    if backfill_col1.button("回补统计局月度指数", key="backfill_nbs_button"):
+        try:
+            with st.spinner("正在回补统计局历史月度指数…"):
+                result = backfill_nbs(config, [region], months=60, pages=120)
+            st.success(f"统计局回补完成：{result.get('records', 0)} 条记录")
+            st.rerun()
+        except Exception as exc:
+            st.error(str(exc))
+    if backfill_col2.button("回补房天下历史价格", key="backfill_fang_button"):
+        try:
+            with st.spinner("正在回补房天下项目历史价格…"):
+                result = backfill_fang_history(config, [region])
+            st.success(f"房天下回补完成：{sum(item.get('records', 0) for item in result.get('summary', []))} 条记录")
+            st.rerun()
+        except Exception as exc:
+            st.error(str(exc))
+
 with tabs[5]:
     st.caption("导出内容与当前选择一致，含来源、原始价格、缺失原因和真实采集时间。")
     export_scope = st.radio("导出范围", ["当前报价筛选", "当前地区全部数据"], horizontal=True)

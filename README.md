@@ -207,6 +207,19 @@ systemctl --user list-timers house-monitor.timer
 ```
 
 如果项目不在 `~/house-monitor`，先修改 `scripts/house-monitor.service` 中的 `WorkingDirectory` 和 `ExecStart`。
+## 历史数据回补
+
+- 国家统计局：回补多年月度住宅价格指数，新增记录按官方文章月份保存。
+- 房天下：回补尚未取得历史价格的项目，抓取其公开历史价格页。
+- 广州住建局：接口只返回最新日期，不能回补历史每日数据。
+- 阳光家缘：接口只返回当前项目销控，不能回补历史快照。
+
+前端“运行日志”页面提供回补按钮；也可以使用命令行：
+
+```bash
+python -m house_monitor.cli backfill --source nbs --months 60 --pages 120
+python -m house_monitor.cli backfill --source fang
+```
 ## 停止与卸载
 
 前端服务和每日调度是两套独立机制：停止网页不会自动停止定时采集；禁用定时任务也不会关闭网页。
