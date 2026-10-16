@@ -2,6 +2,7 @@
   "timezone": "Asia/Shanghai",
   "schedule_start": "09:00:00",
   "schedule_end": "12:00:00",
+  "scheduler_enabled": false,
   "request_interval_seconds": 2,
   "request_timeout_seconds": 20,
   "max_pages": 120,

@@ -1,3 +1,4 @@
+import os
 import secrets
 from datetime import datetime, timedelta, time
 from pathlib import Path
@@ -21,10 +22,18 @@ def daily_target(store, config, current, chooser=secrets.randbelow):
         return dict(c.execute("SELECT * FROM schedules WHERE day=?", (day,)).fetchone())
 
 
+def scheduler_enabled(config):
+    value = os.environ.get("HOUSE_SCHEDULER_ENABLED")
+    if value is not None:
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return bool(config.get("scheduler_enabled", True))
+
 def tick(config, current=None, collector=collect):
     root = Path(config["data_dir"])
     root.mkdir(parents=True, exist_ok=True)
     with FileLock(str(root / "collect.lock"), timeout=0):
+        if not scheduler_enabled(config):
+            return {"state": "disabled", "message": "此节点未启用调度采集"}
         store = Store(root)
         current = current or datetime.now(ZoneInfo(config["timezone"]))
         current = current.astimezone(ZoneInfo(config["timezone"]))

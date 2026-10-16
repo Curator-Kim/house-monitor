@@ -98,7 +98,7 @@ def backfill_nbs(config, regions, months=36, pages=120):
             "articles": fetched_articles, "warnings": warnings, "message": message}
 
 
-def backfill_fang_history(config, regions, limit=None):
+def backfill_fang_history(config, regions, limit=None, refresh=False):
     store = Store(config["data_dir"])
     lock = FileLock(str(store.directory / "collect.lock"), timeout=0)
     with lock:
@@ -111,11 +111,15 @@ def backfill_fang_history(config, regions, limit=None):
                 source_url = region.get("sources", {}).get("fang")
                 if not source_url:
                     continue
-                pending = store.rows("""SELECT source_id,name FROM source_projects
-                    WHERE source='fang' AND region_id=? AND NOT EXISTS (
-                      SELECT 1 FROM observations o WHERE o.source='fang' AND o.region_id=source_projects.region_id
-                      AND o.source_id=source_projects.source_id AND o.granularity='event')
-                    ORDER BY source_id""", (region["id"],))
+                if refresh:
+                    pending = store.rows("""SELECT source_id,name FROM source_projects
+                        WHERE source='fang' AND region_id=? ORDER BY source_id""", (region["id"],))
+                else:
+                    pending = store.rows("""SELECT source_id,name FROM source_projects
+                        WHERE source='fang' AND region_id=? AND NOT EXISTS (
+                          SELECT 1 FROM observations o WHERE o.source='fang' AND o.region_id=source_projects.region_id
+                          AND o.source_id=source_projects.source_id AND o.granularity='event')
+                        ORDER BY source_id""", (region["id"],))
                 if limit:
                     pending = pending[:limit]
                 parts = urlsplit(source_url)
@@ -126,6 +130,11 @@ def backfill_fang_history(config, regions, limit=None):
                     try:
                         events = fang_history(client.get(history_url), item["source_id"], item["name"],
                                               history_url, region["id"])
+                        existing = {(row["period"], row["kind"]) for row in store.rows(
+                            """SELECT period,kind FROM observations WHERE source='fang' AND region_id=?
+                               AND source_id=? AND granularity='event'""",
+                            (region["id"], item["source_id"]))}
+                        events = [event for event in events if (event.period, event.kind) not in existing]
                     except SourceError as exc:
                         warnings.append(f"{item['name']}：{exc}")
                         blocked_streak = blocked_streak + 1 if exc.status in ("blocked", "captcha_failed") else 0

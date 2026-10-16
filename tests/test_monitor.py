@@ -9,7 +9,7 @@ import pytest
 from openpyxl import load_workbook
 from house_monitor.models import Observation, SourceResult
 from house_monitor.storage import Store
-from house_monitor.schedule import daily_target, tick
+from house_monitor.schedule import daily_target, scheduler_enabled, tick
 from house_monitor.parsers import price, fang_list, fang_history, lianjia_list, official_json, ygjy_records, nbs_indices
 from house_monitor.http import robots_allowed, blocked, SourceError, Client
 from house_monitor.analytics import paired_changes, csv_bytes, excel_bytes
@@ -296,3 +296,12 @@ def test_watchlist_add_remove(config):
     assert store.watchlist()[0]["name"] == "更新名称"
     store.remove_watch("fang", "440112", "1")
     assert store.watchlist() == []
+
+def test_scheduler_node_switch(monkeypatch):
+    monkeypatch.delenv("HOUSE_SCHEDULER_ENABLED", raising=False)
+    assert scheduler_enabled({"scheduler_enabled": True}) is True
+    assert scheduler_enabled({"scheduler_enabled": False}) is False
+    monkeypatch.setenv("HOUSE_SCHEDULER_ENABLED", "1")
+    assert scheduler_enabled({"scheduler_enabled": False}) is True
+    monkeypatch.setenv("HOUSE_SCHEDULER_ENABLED", "0")
+    assert scheduler_enabled({"scheduler_enabled": True}) is False

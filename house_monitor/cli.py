@@ -29,6 +29,7 @@ def main():
     backfill_parser.add_argument("--months", type=int, default=36, help="统计局回补月数")
     backfill_parser.add_argument("--pages", type=int, default=120, help="统计局列表最大翻页数")
     backfill_parser.add_argument("--limit", type=int, help="房天下最多检查项目数")
+    backfill_parser.add_argument("--all", action="store_true", help="房天下刷新所有项目历史，而不仅缺少历史的项目")
     web_parser = sub.add_parser("web-password", help="生成 Web 登录密码哈希")
     web_parser.add_argument("--generate", action="store_true", help="生成强密码并输出哈希")
     login_parser = sub.add_parser("login", help="导入用户已有的 Cookie 或令牌，不保存账号密码")
@@ -84,7 +85,7 @@ def main():
             if args.source == "nbs":
                 result = backfill_nbs(config, regions, months=args.months, pages=args.pages)
             else:
-                result = backfill_fang_history(config, regions, limit=args.limit)
+                result = backfill_fang_history(config, regions, limit=args.limit, refresh=args.all)
         elif args.command == "login":
             from .auth import save_auth
             cookie, token = args.cookie, args.token
