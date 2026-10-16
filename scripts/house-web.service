@@ -1,0 +1,13 @@
+[Unit]
+Description=House monitor web
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=%h/house-monitor
+ExecStart=%h/house-monitor/.venv/bin/python -m streamlit run app.py --server.address 0.0.0.0 --server.port 18642 --server.headless true
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

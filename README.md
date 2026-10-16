@@ -239,6 +239,24 @@ systemctl --user list-timers house-monitor.timer
 python -m house_monitor.cli backfill --source nbs --months 60 --pages 120
 python -m house_monitor.cli backfill --source fang
 ```
+## 当前远程部署
+
+- 地址：`http://110.42.255.6:18642`
+- 登录：必须先在登录页输入账号密码，未登录不会显示数据。
+- Web 服务：`house-web.service`
+- 采集定时器：`house-monitor.timer`
+- 服务文件：`scripts/house-web.service`、`scripts/house-monitor.service`、`scripts/house-monitor.timer`
+- 数据目录：服务器 `/home/ubuntu/house-monitor/data`
+
+查看服务器服务：
+
+```bash
+systemctl --user status house-web.service
+systemctl --user status house-monitor.timer
+journalctl --user -u house-web.service -f
+```
+
+腾讯云安全组需要放行 `18642` 端口。服务只使用 HTTP，建议后续配置 HTTPS 反向代理。
 ## 停止与卸载
 
 前端服务和每日调度是两套独立机制：停止网页不会自动停止定时采集；禁用定时任务也不会关闭网页。
