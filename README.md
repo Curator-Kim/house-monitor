@@ -246,6 +246,7 @@ python -m house_monitor.cli backfill --source fang
 - Web 服务：`house-web.service`
 - 采集定时器：`house-monitor.timer`
 - 服务文件：`scripts/house-web.service`、`scripts/house-monitor.service`、`scripts/house-monitor.timer`
+- Chrome 驱动：服务器使用 `/home/ubuntu/.local/bin/chromedriver`，由 systemd 的 `CHROMEDRIVER_PATH` 环境变量指定。
 - 数据目录：服务器 `/home/ubuntu/house-monitor/data`
 
 查看服务器服务：

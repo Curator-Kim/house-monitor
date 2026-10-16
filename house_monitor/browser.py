@@ -1,4 +1,6 @@
 """受控浏览器会话，用于公开查询页面的验证码与 JavaScript 数据接口。"""
+import os
+import shutil
 from time import sleep
 from urllib.parse import urlencode
 from .http import SourceError, UA
@@ -23,7 +25,12 @@ class BrowserSession:
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--window-size=1440,1200")
         options.add_argument(f"--user-agent={UA}")
-        self.driver = webdriver.Chrome(options=options)
+        driver_path = os.environ.get("CHROMEDRIVER_PATH") or shutil.which("chromedriver")
+        if driver_path:
+            from selenium.webdriver.chrome.service import Service
+            self.driver = webdriver.Chrome(service=Service(driver_path), options=options)
+        else:
+            self.driver = webdriver.Chrome(options=options)
         self.wait = WebDriverWait(self.driver, self.config.get("request_timeout_seconds", 20) + 20)
         return self
 

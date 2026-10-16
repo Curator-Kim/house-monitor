@@ -6,5 +6,6 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=%h/house-monitor
+Environment=CHROMEDRIVER_PATH=%h/.local/bin/chromedriver
 ExecStart=%h/house-monitor/.venv/bin/python -m house_monitor.cli tick
 TimeoutStartSec=3600
