@@ -13,6 +13,25 @@
 - 成交价：当前没有确认稳定公开的楼盘每日成交价，缺失时留空，不以报价代替。
 - 二手房：新房连续七天通过验收后再接入。
 
+## Web 登录
+
+网页默认要求登录，未登录时不会显示任何数据。
+
+生成强密码和哈希：
+
+```powershell
+& .\.venv\Scripts\python.exe -m house_monitor.cli web-password --generate
+```
+
+将输出中的 `password_hash` 写入 `.streamlit/secrets.toml`：
+
+```toml
+[web_auth]
+username = "admin"
+password_hash = "pbkdf2_sha256$..."
+```
+
+`.streamlit/secrets.toml` 已被 Git 忽略，不会提交。服务器上该文件权限应设置为仅当前用户可读。明文密码只交给使用者保存，不写入仓库。
 ## 多城市管理
 
 网页侧栏的“城市管理”提供预置城市下拉清单，也可以选择“自定义城市”填写城市名称和域名标识。

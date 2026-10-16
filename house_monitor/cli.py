@@ -29,6 +29,8 @@ def main():
     backfill_parser.add_argument("--months", type=int, default=36, help="统计局回补月数")
     backfill_parser.add_argument("--pages", type=int, default=120, help="统计局列表最大翻页数")
     backfill_parser.add_argument("--limit", type=int, help="房天下最多检查项目数")
+    web_parser = sub.add_parser("web-password", help="生成 Web 登录密码哈希")
+    web_parser.add_argument("--generate", action="store_true", help="生成强密码并输出哈希")
     login_parser = sub.add_parser("login", help="导入用户已有的 Cookie 或令牌，不保存账号密码")
     login_parser.add_argument("--source", required=True, choices=["lianjia"])
     login_parser.add_argument("--cookie", help="浏览器 Cookie 请求头，例如 name=value; name2=value2")
@@ -62,6 +64,18 @@ def main():
         elif args.command == "replay":
             from .replay import replay
             result = replay(config, args.raw_run, args.region)
+        elif args.command == "web-password":
+            from .web_auth import hash_password
+            if args.generate:
+                import secrets
+                password = secrets.token_urlsafe(15)
+            else:
+                import getpass
+                password = getpass.getpass("请输入 Web 登录密码: ").strip()
+                again = getpass.getpass("请再次输入: ").strip()
+                if not password or password != again:
+                    parser.error("两次密码不一致或为空")
+            result = {"password": password, "password_hash": hash_password(password)}
         elif args.command == "backfill":
             from .backfill import backfill_fang_history, backfill_nbs
             regions = [r for r in config["regions"] if r.get("enabled") and (not args.region or r["id"] == args.region)]

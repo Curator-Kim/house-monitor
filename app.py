@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 from filelock import Timeout
 from house_monitor.config import add_region, load_config
+from house_monitor.web_auth import require_login
 from house_monitor.storage import Store
 from house_monitor.service import collect
 from house_monitor.auth import clear_auth, load_auth, save_auth
@@ -12,6 +13,7 @@ from house_monitor.cities import CITY_CATALOG
 from house_monitor.analytics import frame, paired_changes, csv_bytes, excel_bytes, LABELS, SOURCES
 
 st.set_page_config(page_title="住宅价格观察", page_icon="🏠", layout="wide")
+require_login()
 config = load_config()
 store = Store(config["data_dir"])
 st.title("住宅价格观察")
