@@ -231,6 +231,7 @@ systemctl --user list-timers house-monitor.timer
 - 国家统计局：回补多年月度住宅价格指数，新增记录按官方文章月份保存。
 - 房天下：回补尚未取得历史价格的项目，抓取其公开历史价格页。
 - 广州住建局：接口只返回最新日期，不能回补历史每日数据。
+- 国家统计局新版发布列表目前只能回溯到 2021-10；更早月份需要国家数据接口，暂未接入。
 - 阳光家缘：接口只返回当前项目销控，不能回补历史快照。
 
 前端“运行日志”页面提供回补按钮；也可以使用命令行：
@@ -248,6 +249,8 @@ python -m house_monitor.cli backfill --source fang
 - 服务文件：`scripts/house-web.service`、`scripts/house-monitor.service`、`scripts/house-monitor.timer`
 - Chrome 驱动：服务器使用 `/home/ubuntu/.local/bin/chromedriver`，由 systemd 的 `CHROMEDRIVER_PATH` 环境变量指定。
 - 数据目录：服务器 `/home/ubuntu/house-monitor/data`
+- 唯一采集节点：服务器。本地 `config.json` 默认 `scheduler_enabled=false`，服务器 systemd 使用 `HOUSE_SCHEDULER_ENABLED=1` 启用调度。
+- HTTPS 域名：`110-42-255-6.sslip.io`。Nginx 反向代理已配置，待腾讯云安全组放行 80/443 后签发证书。
 
 查看服务器服务：
 

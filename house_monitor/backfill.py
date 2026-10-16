@@ -55,7 +55,14 @@ def backfill_nbs(config, regions, months=36, pages=120):
             links = {}
             for page in range(max(1, pages)):
                 page_url = base_url if page == 0 else urljoin(base_url, f"index_{page}.html")
-                links.update(_nbs_links(client.get(page_url), page_url))
+                try:
+                    page_html = client.get(page_url)
+                except SourceError as exc:
+                    if "404" in str(exc):
+                        break
+                    warnings.append(f"列表第 {page} 页获取失败：{exc}")
+                    continue
+                links.update(_nbs_links(page_html, page_url))
                 if links and min(links)[0] * 12 + min(links)[1] - 1 <= target_index:
                     break
             selected = sorted(((key, url) for key, url in links.items()
